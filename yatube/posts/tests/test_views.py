@@ -18,7 +18,6 @@ class PostPagesTests(TestCase):
         super().setUpClass()
         #  Создаю нового пользователя в БД
         cls.user = User.objects.create_user(username='TestUser')
-        cls.user_2 = User.objects.create_user(username='TestUser_2')
         #  Создаю новую группу в БД
         cls.group = Group.objects.create(
             title='Тестовый заголовок',
@@ -42,16 +41,6 @@ class PostPagesTests(TestCase):
             text='Тестовый текст',
             author=cls.user,
             group=cls.group
-        )
-        #  Создаю третий пост в БД
-        cls.post_3 = Post.objects.create(
-            text='Тестовый текст',
-            author=cls.user_2,
-            group=cls.group
-        )
-        cls.follow = Follow.objects.create(
-            user=cls.user,
-            author=cls.user_2
         )
 
     def setUp(self):
@@ -205,55 +194,81 @@ class PostPagesTests(TestCase):
                         response.context['page_obj']),
                         settings.NUM_POST_IN_LAST_PAGE)
 
+    class CacheTest(TestCase):
+        @classmethod
+        def setUpClass(cls):
+            super().setUpClass()
+            cls.user = User.objects.create_user(username='TestUser')
+            cls.guest_client = Client()
+            cls.post = Post.objects.create(
+                text='Тестовый текст',
+                author=cls.user,
+                group=cls.group
+            )
+
         def test_cache(self):
             """Проверка, что пост хранится в кэше."""
-            response_index_1 = self.guest_client.get(reverse('posts:index'))
-            self.assertContains(response_index_1, self.post_2)
-            response_index_2 = self.guest_client.get(reverse('posts:index'))
-            self.assertNotContains(response_index_2, self.post_2.text)
+            response_1 = self.guest_client.get(reverse('posts:index'))
+            content_len_before = len(response_1.content)
+            self.post.delete()
+            response_2 = self.guest_client.get(reverse('posts:index'))
+            content_len_after = len(response_2.content)
+            self.assertEqual(content_len_before, content_len_after)
             cache.clear()
-            response_index_3 = self.guest_client.get(reverse('posts:index'))
-            self.assertContains(response_index_3, self.post_2.text)
+            response_3 = self.guest_client.get(reverse('posts:index'))
+            content_len_after = len(response_3.content)
+            self.assertNotEqual(content_len_after, content_len_before)
 
-        def test_new_post_appears_in_follow_index(self):
-            """Новый пост появляется в ленте подписчиков."""
-            follow_index_page = self.authorized_client.get(
-                reverse('posts:follow_index'))
-            self.assertIn(self.post_user.text, follow_index_page)
-
-        def test_new_post_not_appears_in_follow_index(self):
-            """Новый пост не появляется в ленте у"""
-            """неподписанного пользователя."""
-            follow_index_page = self.guest_client.get(
-                reverse('posts:follow_index'))
-            self.assertNotIn(self.post_3.text, follow_index_page)
+    class FollowTest(TestCase):
+        @classmethod
+        def setUpClass(cls):
+            super().setUpClass()
+            cls.user = User.objects.create_user(username='TestUser')
+            cls.author = User.objects.create_user(username='TestAuthor')
+            cls.follower = User.objects.create_user(username='TestFollower')
+            cls.authorized_author = Client()
+            cls.authorized_author.force_login(cls.author)
+            cls.authorized_follower = Client()
+            cls.authorized_follower.force_login(cls.follower)
+            Follow.objects.create(
+                user=cls.follower,
+                author=cls.author
+            )
+            cls.post = Post.objects.create(
+                text='Тестовый текст',
+                author=cls.author
+            )
 
         def test_login_user_can_subscribe(self):
             """Авторизованный пользователь может подписываться"""
             """на других юзеров."""
-            response_get_profile = self.authorized_client.get(
-                reverse('posts:profile', kwargs={'username': self.user}))
-            self.assertIn("Подписаться", response_get_profile)
-            self.assertNotIn("Отписаться", response_get_profile)
-            response_subscribe = self.authorized_client.post(
-                reverse('posts:follow_index',
-                        args=(self.user_2,)), follow=True)
-            is_follow = Follow.objects.filter(
-                user=self.user, author=self.user_2).count()
-            self.assertEqual(is_follow, 1)
-            self.assertIn("Отписаться", response_subscribe)
+            self.authorized_follower.get(reverse(
+                'posts:profile_follow', args={self.author.username}))
+            follower_count = Follow.objects.filter(
+                user=self.follower.id, author=self.author.id).count()
+            self.assertEqual(follower_count, 1)
 
         def test_login_user_can_unsubscribe(self):
             """Авторизованный пользователь может отписываться от"""
             """других юзеров."""
-            is_follow = Follow.objects.filter(
-                user=self.user, author=self.user_2).count()
-            self.assertEqual(is_follow, 1)
-            response_unsubscribe = self.client_auth.post(
-                reverse(
-                    'posts:profile_unfollow',
-                    args=(self.user_2,)), follow=True)
-            self.assertIn("Подписаться", response_unsubscribe)
-            follow_obj = Follow.objects.filter(
-                user=self.user, author=self.user_2).count()
-            self.assertEqual(follow_obj, 0)
+            self.authorized_follower.get(reverse(
+                'posts:profile_unfollow', args={self.author.username}))
+            follower_count = Follow.objects.filter(
+                user=self.follower.id, author=self.author.id).count()
+            self.assertEqual(follower_count, 0)
+
+        def test_new_post_appears_in_follow_index(self):
+            """Новый пост появляется в ленте подписчика."""
+            response = self.authorized_follower.get(
+                reverse('posts:follow_index'))
+            post = response.context['posts'][0]
+            self.assertEqual(post.text, post.text)
+
+        def test_new_post_not_appears_in_follow_index(self):
+            """Новый пост не появляется в ленте у"""
+            """неподписанного пользователя."""
+            authorized_user = Client()
+            authorized_user.force_login(self.user)
+            response = authorized_user.get(reverse('posts:follow_index'))
+            posts = response.context['posts']
+            self.assertNotIn(self.post, posts)
