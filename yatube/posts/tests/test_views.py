@@ -88,6 +88,7 @@ class PostPagesTests(TestCase):
         self.assertEqual(post.text, self.post.text)
         self.assertEqual(post.author, self.user)
         self.assertEqual(post.group.title, self.group.title)
+        self.assertEqual(post.image, self.post.image)
 
     def test_index_show_correct_context(self):
         """Шаблон index сформирован с правильным контекстом."""
