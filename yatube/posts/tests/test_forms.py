@@ -147,3 +147,24 @@ class PostCreateFormTests(TestCase):
         )
         self.assertEqual(response.status_code, HTTPStatus.OK)
         self.assertEqual(Comment.objects.count(), comment_count + 1)
+
+    # Добавляю тестирование
+    def test_unlogged_user_cant_comment_post(self):
+        """Неавторизованный пользователь не может комментировать пост"""
+        comment_count = Comment.objects.count()
+        form_data = {
+            'post': self.post,
+            'text': 'Тестовый комментарий'
+        }
+        response = self.guest_client.post(
+            reverse('posts:add_comment', kwargs={
+                'post_id': self.post.pk}),
+            data=form_data,
+            follow=True,
+        )
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertEqual(Comment.objects.count(), comment_count)
+        self.assertRedirects(response,
+                             reverse('users:login') + '?next=' + reverse(
+                                 'posts:add_comment',
+                                 kwargs={'post_id': self.post.pk}))

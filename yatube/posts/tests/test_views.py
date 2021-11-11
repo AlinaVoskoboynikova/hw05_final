@@ -230,45 +230,61 @@ class PostPagesTests(TestCase):
             cls.authorized_author.force_login(cls.author)
             cls.authorized_follower = Client()
             cls.authorized_follower.force_login(cls.follower)
-            Follow.objects.create(
-                user=cls.follower,
-                author=cls.author
-            )
-            cls.post = Post.objects.create(
-                text='Тестовый текст',
-                author=cls.author
-            )
 
         def test_login_user_can_subscribe(self):
             """Авторизованный пользователь может подписываться"""
             """на других юзеров."""
+            self.follow = Follow.objects.create(
+                user=self.follower,
+                author=self.author
+            )
             self.authorized_follower.get(reverse(
                 'posts:profile_follow', args={self.author.username}))
-            follower_count = Follow.objects.filter(
+            follower_count = self.follow.filter(
                 user=self.follower.id, author=self.author.id).count()
             self.assertEqual(follower_count, 1)
 
         def test_login_user_can_unsubscribe(self):
             """Авторизованный пользователь может отписываться от"""
             """других юзеров."""
+            self.follow = Follow.objects.create(
+                user=self.follower,
+                author=self.author
+            )
             self.authorized_follower.get(reverse(
                 'posts:profile_unfollow', args={self.author.username}))
-            follower_count = Follow.objects.filter(
+            follower_count = self.follow.filter(
                 user=self.follower.id, author=self.author.id).count()
             self.assertEqual(follower_count, 0)
 
         def test_new_post_appears_in_follow_index(self):
             """Новый пост появляется в ленте подписчика."""
+            self.follow = Follow.objects.create(
+                user=self.follower,
+                author=self.author
+            )
+            self.post = Post.objects.create(
+                text='Тестовый текст',
+                author=self.author
+            )
             response = self.authorized_follower.get(
                 reverse('posts:follow_index'))
             post = response.context['posts'][0]
-            self.assertEqual(post.text, post.text)
+            self.assertIn(self.post.text, post)
 
         def test_new_post_not_appears_in_follow_index(self):
             """Новый пост не появляется в ленте у"""
             """неподписанного пользователя."""
+            self.follow = Follow.objects.create(
+                user=self.follower,
+                author=self.author
+            )
+            self.post = Post.objects.create(
+                text='Тестовый текст',
+                author=self.author
+            )
             authorized_user = Client()
             authorized_user.force_login(self.user)
             response = authorized_user.get(reverse('posts:follow_index'))
-            posts = response.context['posts']
-            self.assertNotIn(self.post, posts)
+            post = response.context['posts']
+            self.assertNotIn(self.post, post)

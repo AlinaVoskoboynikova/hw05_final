@@ -58,6 +58,37 @@ class StaticURLTests(TestCase):
                                               f'edit/')
         self.assertEqual(response.status_code, HTTPStatus.OK)
 
+    # Добавляю тестирование новых urls
+    def test_comment(self):
+        """Проверка доступности адреса /posts/post_id/comment"""
+        """авторизованному пользователю"""
+        response = self.authorized_client.get(f'/posts/'
+                                              f'{self.post.pk}/'
+                                              f'comment')
+        self.assertEqual(response.status_code, HTTPStatus.FOUND)
+
+    def test_follow_index(self):
+        """Проверка доступности адреса /follow/"""
+        """авторизованному пользователю"""
+        response = self.authorized_client.get('/follow/')
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+
+    def test_profile_follow(self):
+        """Проверка доступности адреса /profile/username/follow/"""
+        """авторизованному пользователю"""
+        response = self.authorized_client.get(f'/profile/'
+                                              f'{self.user}/'
+                                              f'follow/')
+        self.assertEqual(response.status_code, HTTPStatus.FOUND)
+
+    def test_profile_unfollow(self):
+        """Проверка доступности адреса /profile/username/unfollow/"""
+        """авторизованному пользователю"""
+        response = self.authorized_client.get(f'/profile/'
+                                              f'{self.user}/'
+                                              f'unfollow/')
+        self.assertEqual(response.status_code, HTTPStatus.FOUND)
+
     def test_unexisting_page(self):
         """Проверка запроса к несуществующей странице"""
         response = self.guest_client.get('/unexisting_page/')
@@ -72,7 +103,8 @@ class StaticURLTests(TestCase):
             f'/profile/{self.user}/': 'posts/profile.html',
             f'/posts/{self.post.pk}/': 'posts/post_detail.html',
             '/create/': 'posts/create_post.html',
-            f'/posts/{self.post.pk}/edit/': 'posts/create_post.html'
+            f'/posts/{self.post.pk}/edit/': 'posts/create_post.html',
+            '/follow/': 'posts/follow.html'
         }
         for adress, template in templates_url_names.items():
             with self.subTest(adress=adress):
