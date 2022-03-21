@@ -46,7 +46,7 @@ python3 manage.py migrate
 
 ```
 python manage.py createsuperuser
-``
+```
 
 Запустить проект:
 
